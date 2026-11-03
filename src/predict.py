@@ -1,13 +1,13 @@
 """Script para prever o resultado em novas imagens"""
 
-import torch
 import pandas as pd
-from pathlib import Path
+import torch
 from tqdm import tqdm
-import numpy as np
 
-from dataset import get_test_dataloader
+from dataset import ROOT_DIR, get_test_dataloader
 from model import CNN
+
+OUTPUT_DIR = ROOT_DIR / "data"
 
 
 def generate_predictions():
@@ -16,8 +16,8 @@ def generate_predictions():
     print(f"Gerando previsões no dispositivo: {device}\n")
 
     batch_size = 64
-    model_path = Path("best_model.pth")
-    output_path = Path("submission.csv")
+    model_path = OUTPUT_DIR / "best_model.pth"
+    output_path = OUTPUT_DIR / "submission.csv"
 
     # 2. Carregar Dataloader de Teste e Modelo
     test_loader = get_test_dataloader(batch_size=batch_size)
@@ -49,16 +49,18 @@ def generate_predictions():
             probabilities.extend(probs)
 
     # 4. Criar DataFrame e Exportar CSV
-    df = pd.DataFrame({
-        "id": ids,
-        "label": probabilities
-    })
+    df = pd.DataFrame(
+        {
+            "id": ids,
+            "label": probabilities,
+        }
+    )
 
     # Garante ordenação sequencial pelos IDs das imagens
     df = df.sort_values("id").reset_index(drop=True)
     df.to_csv(output_path, index=False)
 
-    print(f"\n✅ Previsões salvas com sucesso em '{output_path}'!")
+    print(f"\nPrevisões salvas com sucesso em '{output_path}'!")
     print("\nPrimeiras linhas do arquivo gerado:")
     print(df.head())
 
