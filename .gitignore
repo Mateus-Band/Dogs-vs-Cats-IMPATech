@@ -1,6 +1,37 @@
+# Ambientes virtuais
 .venv/
+venv/
+env/
+
+# Bytecode e caches do Python
 **/__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# IDEs e editores
 .vscode/
+.idea/
 
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
 
-/data/dogs-vs-cats
+# Base de dados (brutos e descompactados)
+/data/dogs-vs-cats/
+*.zip
+
+# Pesos e checkpoints de modelos (arquivos pesados)
+*.pth
+*.pt
+*.ckpt
+*.h5
+*.onnx
+
+# Saídas de treinamento e predições
+data/*.csv
