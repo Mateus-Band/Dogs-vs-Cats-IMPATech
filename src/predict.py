@@ -1,13 +1,58 @@
 """Script para prever o resultado em novas imagens"""
 
+import argparse
+from pathlib import Path
 import pandas as pd
+from PIL import Image
 import torch
+from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from tqdm import tqdm
 
 from dataset import ROOT_DIR, get_test_dataloader
 from model import CNN
 
 OUTPUT_DIR = ROOT_DIR / "data"
+
+
+def predict_single_image(image_path: str | Path, model_path: Path = OUTPUT_DIR / "best_model.pth") -> tuple[str, float]:
+    image_path = Path(image_path).expanduser().resolve()
+    if not image_path.exists():
+        raise FileNotFoundError(f"Imagem não encontrada: {image_path}")
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = CNN().to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+
+    transform = Compose(
+        [
+            Resize(224),
+            CenterCrop(224),
+            ToTensor(),
+            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ]
+    )
+
+    image = Image.open(image_path).convert("RGB")
+    tensor = transform(image).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        output = model(tensor)
+        prob_dog = torch.sigmoid(output).item()
+
+    if prob_dog >= 0.5:
+        predicted_class = "Cachorro"
+        confidence = prob_dog * 100
+    else:
+        predicted_class = "Gato"
+        confidence = (1 - prob_dog) * 100
+
+    print(f"\nImagem: {image_path.name}")
+    print(f"Predição: {predicted_class} ({confidence:.2f}% de confiança)")
+    print(f"Probabilidade (Cachorro): {prob_dog:.4f}")
+
+    return predicted_class, prob_dog
 
 
 def generate_predictions():
@@ -66,4 +111,17 @@ def generate_predictions():
 
 
 if __name__ == "__main__":
-    generate_predictions()
+    parser = argparse.ArgumentParser(description="Gera previsões com o modelo de classificação.")
+    parser.add_argument(
+        "image",
+        nargs="?",
+        type=str,
+        default=None,
+        help="Caminho para uma única imagem (ex: ~/Downloads/foto.jpg). Se omitido, processa o lote de teste para submissão.",
+    )
+    args = parser.parse_args()
+
+    if args.image:
+        predict_single_image(args.image)
+    else:
+        generate_predictions()
