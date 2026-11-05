@@ -8,13 +8,13 @@ import torch
 from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
 from tqdm import tqdm
 
-from dataset import ROOT_DIR, get_test_dataloader
+from dataset import ROOT_DIR, get_norm_stats, get_test_dataloader
 from model import CNN
 
 OUTPUT_DIR = ROOT_DIR / "data"
 
 
-def predict_single_image(image_path: str | Path, model_path: Path = OUTPUT_DIR / "best_model.pth") -> tuple[str, float]:
+def predict_single_image(image_path: str | Path, model_path: Path = OUTPUT_DIR / "best_model_2.0.pth") -> tuple[str, float]:
     image_path = Path(image_path).expanduser().resolve()
     if not image_path.exists():
         raise FileNotFoundError(f"Imagem não encontrada: {image_path}")
@@ -25,12 +25,13 @@ def predict_single_image(image_path: str | Path, model_path: Path = OUTPUT_DIR /
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
+    mean, std = get_norm_stats()
     transform = Compose(
         [
             Resize(224),
             CenterCrop(224),
             ToTensor(),
-            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            Normalize(mean=mean, std=std),
         ]
     )
 
@@ -60,9 +61,9 @@ def generate_predictions():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Gerando previsões no dispositivo: {device}\n")
 
-    batch_size = 64
-    model_path = OUTPUT_DIR / "best_model.pth"
-    output_path = OUTPUT_DIR / "submission.csv"
+    batch_size = 128
+    model_path = OUTPUT_DIR / "best_model_2.0.pth"
+    output_path = OUTPUT_DIR / "submission_2.0.csv"
 
     # 2. Carregar Dataloader de Teste e Modelo
     test_loader = get_test_dataloader(batch_size=batch_size)

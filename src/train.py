@@ -11,9 +11,11 @@ from dataset import ROOT_DIR, get_dataloaders
 from model import CNN
 
 # Hiperparametros
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 LEARNING_RATE = 0.001
-N_EPOCHS = 15
+WEIGHT_DECAY = 1e-4
+N_EPOCHS = 25
+EARLY_STOPPING_PATIENCE = 5
 
 OUTPUT_DIR = ROOT_DIR / "data"
 
@@ -25,12 +27,14 @@ def train_model():
 
     batch_size = BATCH_SIZE
     lr = LEARNING_RATE
+    weight_decay = WEIGHT_DECAY
     n_epochs = N_EPOCHS
+    patience = EARLY_STOPPING_PATIENCE
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = OUTPUT_DIR / "best_model.pth"
-    history_path = OUTPUT_DIR / "training_history.csv"
-    val_preds_path = OUTPUT_DIR / "val_predictions.csv"
+    save_path = OUTPUT_DIR / "best_model_2.0.pth"
+    history_path = OUTPUT_DIR / "training_history_2.0.csv"
+    val_preds_path = OUTPUT_DIR / "val_predictions_2.0.csv"
 
     # modelo e dataloader
     train_loader, val_loader = get_dataloaders(batch_size)
@@ -38,9 +42,10 @@ def train_model():
 
     # otimização e perda
     criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     best_val_loss = float("inf")
+    epochs_without_improvement = 0
     history = []
 
     # Loop de Epochs
@@ -115,6 +120,7 @@ def train_model():
         # Salvar melhor modelo e as previsões de validação correspondentes
         if epoch_val_loss < best_val_loss:
             best_val_loss = epoch_val_loss
+            epochs_without_improvement = 0
             torch.save(model.state_dict(), save_path)
             pd.DataFrame(
                 {
@@ -124,6 +130,12 @@ def train_model():
                 }
             ).to_csv(val_preds_path, index=False)
             print(f"  -> Novo melhor modelo salvo em: {save_path}")
+        else:
+            epochs_without_improvement += 1
+            print(f"  -> Sem melhora na Val Loss ({epochs_without_improvement}/{patience})")
+            if epochs_without_improvement >= patience:
+                print(f"\nEarly Stopping acionado após {patience} épocas sem melhora na Val Loss.")
+                break
 
     print(f"\nHistórico de treinamento salvo em: {history_path}")
     print(f"Previsões de validação do melhor modelo salvas em: {val_preds_path}")
