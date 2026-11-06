@@ -160,3 +160,36 @@ Em todas as versões (`V1`, `V2`, `V3` e `V4`), o critério de seleção do melh
 | **V3** | **Época 28** / 30 (máx. 30) | Fim das 30 épocas (paciência = 7) | `0.1938` | `92.42%` | `92.42%` | `0.2081` | `91.97%` | `data/best_model_3.0.pth` | `data/training_history_3.0.csv` | `data/val_predictions_3.0.csv` | `data/submission_3.0.csv` |
 | **V4** | **Época 30** / 30 (máx. 30) | Fim das 30 épocas (paciência = 7) | `0.1358` | `94.64%` | `94.61%` | `0.1418` | `94.41%` | `data/best_model_4.0.pth` | `data/training_history_4.0.csv` | `data/val_predictions_4.0.csv` | `data/submission_4.0.csv` |
 
+---
+
+### 8. Planejamento de Fine-Tuning (`V4` $\to$ `4.0_Final` em `src/fine_tuning.py`)
+
+O refinamento fino parte dos pesos salvos no melhor checkpoint da V4 (`data/best_model_4.0.pth`, época 30):
+
+#### 1. Congelamento de Camadas (*Layer Freezing*)
+* **Congelados (`requires_grad = False`):** **Bloco 1 ao Bloco 3** (`model.features[:12]`).
+* **Treináveis (`requires_grad = True`):** **Blocos 4 e 5** (`model.features[12:]`) + `model.classifier`.
+* **Por quê:** Os blocos 1 a 3 extraem características genéricas de baixo nível (bordas, texturas, formas básicas), que já foram aprendidas com sucesso. Descongelar apenas os blocos 4, 5 e o classificador permite refinar o contexto global de alto nível sem destruir a base.
+
+```python
+for param in model.features[:12].parameters():
+    param.requires_grad = False
+```
+
+#### 2. Data Augmentation Suave
+Para não introduzir ruído excessivo durante o refinamento fino:
+* **Crop:** `RandomResizedCrop(384, scale=(0.9, 1.0))` (em vez de `0.8-1.0`, preservando quase toda a geometria original).
+* **Flip:** `RandomHorizontalFlip(p=0.5)` (mantido).
+* **Rotação:** `RandomRotation(degrees=5)` (reduzido de 15° para evitar distorções angulares).
+* **ColorJitter:** `ColorJitter(brightness=0.05, contrast=0.05)` (suavizado de 0.2 para 0.05).
+
+#### 3. Scheduler & Otimização
+* **Otimizador:** `AdamW` (`lr = 1e-5`, `weight_decay = 1e-4`).
+* **Scheduler:** `CosineAnnealingLR(optimizer, T_max=10, eta_min=1e-7)`
+  * **`T_max = 10`:** Acompanha exatamente o ciclo total de 10 épocas.
+  * **`eta_min = 1e-7`:** Permite que a taxa de aprendizado caia suavemente de `1e-5` até `1e-7`, garantindo assentamento seguro dos pesos nas épocas finais.
+* **Duração & Parada:** **10 Épocas** com *Early Stopping* de **paciência = 4** (baseado no `val_loss`).
+* **DataLoaders:** `get_dataloaders(batch_size=64, train_transform=get_finetune_transform())`.
+* **Saídas geradas:** `data/best_model_4.0_Final.pth`, `data/training_history_4.0_Final.csv` e `data/val_predictions_4.0_Final.csv`.
+
+

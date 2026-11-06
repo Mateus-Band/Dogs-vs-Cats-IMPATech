@@ -95,6 +95,25 @@ def get_train_transform(mean: list[float] | None = None, std: list[float] | None
     )
 
 
+def get_finetune_transform(
+    mean: list[float] | None = None,
+    std: list[float] | None = None,
+    rotation_degrees: float = 5,
+):
+    if mean is None or std is None:
+        mean, std = get_norm_stats()
+    return Compose(
+        [
+            RandomResizedCrop(384, scale=(0.9, 1.0)),
+            RandomHorizontalFlip(p=0.5),
+            RandomRotation(degrees=rotation_degrees),
+            ColorJitter(brightness=0.05, contrast=0.05),
+            ToTensor(),
+            Normalize(mean=mean, std=std),
+        ]
+    )
+
+
 def get_default_transform(mean: list[float] | None = None, std: list[float] | None = None):
     if mean is None or std is None:
         mean, std = get_norm_stats()
@@ -131,16 +150,22 @@ class DogsCatsDataset(Dataset):
         return image, image_id
 
 
-def get_train_val_datasets(train_dir: Path = TRAIN_DIR, max_samples: int | None = None):
+def get_train_val_datasets(
+    train_dir: Path = TRAIN_DIR,
+    max_samples: int | None = None,
+    train_transform=None,
+):
     train_files, val_files, train_labels, val_labels = get_train_files(train_dir, max_samples)
 
     if max_samples is None:
-        train_transform = get_train_transform()
+        if train_transform is None:
+            train_transform = get_train_transform()
         val_transform = get_default_transform()
     else:
         # Teste leve: estatísticas do subconjunto de treino (sem sobrescrever o arquivo salvo)
         mean, std = compute_channel_stats(train_files)
-        train_transform = get_train_transform(mean, std)
+        if train_transform is None:
+            train_transform = get_train_transform(mean, std)
         val_transform = get_default_transform(mean, std)
 
     train_dataset = DogsCatsDataset(train_files, train_labels, transform=train_transform)
@@ -155,8 +180,13 @@ def get_dataloaders(
     max_samples: int | None = None,
     num_workers: int = 4,
     pin_memory: bool = True,
+    train_transform=None,
 ):
-    train_dataset, val_dataset = get_train_val_datasets(train_dir, max_samples=max_samples)
+    train_dataset, val_dataset = get_train_val_datasets(
+        train_dir,
+        max_samples=max_samples,
+        train_transform=train_transform,
+    )
 
     train_loader = DataLoader(
         train_dataset,
