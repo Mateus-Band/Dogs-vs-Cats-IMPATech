@@ -22,9 +22,11 @@
 
 ### 3. Quantidade e Detalhamento das Camadas
 
+#### **Arquitetura Base (V1, V2 e V3):**
+
 A rede possui **7 camadas convolucionais**, **7 de Batch Normalization**, **4 MaxPoolings**, **1 AdaptiveAvgPool** e **2 camadas lineares (densas)**, organizadas assim:
 
-#### **Bloco 1 (Resolução: $224 \times 224 \to 112 \times 112$):**
+##### **Bloco 1 (Resolução: $224 \times 224 \to 112 \times 112$ / $384 \to 192$ na V3):**
 
 1. `Conv2d(3, 64, kernel_size=3, padding=1)` $\to$ saída: $(64, 224, 224)$
 2. `BatchNorm2d(64)` + `ReLU()`
@@ -32,7 +34,7 @@ A rede possui **7 camadas convolucionais**, **7 de Batch Normalization**, **4 Ma
 4. `BatchNorm2d(64)` + `ReLU()`
 5. `MaxPool2d(2, 2)` $\to$ saída: $(64, 112, 112)$
 
-#### **Bloco 2 (Resolução: $112 \times 112 \to 56 \times 56$):**
+##### **Bloco 2 (Resolução: $112 \times 112 \to 56 \times 56$):**
 
 6. `Conv2d(64, 128, kernel_size=3, padding=1)` $\to$ saída: $(128, 112, 112)$
 7. `BatchNorm2d(128)` + `ReLU()`
@@ -40,7 +42,7 @@ A rede possui **7 camadas convolucionais**, **7 de Batch Normalization**, **4 Ma
 9. `BatchNorm2d(128)` + `ReLU()`
 10. `MaxPool2d(2, 2)` $\to$ saída: $(128, 56, 56)$
 
-#### **Bloco 3 (Resolução: $56 \times 56 \to 28 \times 28$):**
+##### **Bloco 3 (Resolução: $56 \times 56 \to 28 \times 28$):**
 
 11. `Conv2d(128, 256, kernel_size=3, padding=1)` $\to$ saída: $(256, 56, 56)$
 12. `BatchNorm2d(256)` + `ReLU()`
@@ -48,13 +50,13 @@ A rede possui **7 camadas convolucionais**, **7 de Batch Normalization**, **4 Ma
 14. `BatchNorm2d(256)` + `ReLU()`
 15. `MaxPool2d(2, 2)` $\to$ saída: $(256, 28, 28)$
 
-#### **Bloco 4 (Resolução: $28 \times 28 \to 14 \times 14$):**
+##### **Bloco 4 (Resolução: $28 \times 28 \to 14 \times 14$):**
 
 16. `Conv2d(256, 512, kernel_size=3, padding=1)` $\to$ saída: $(512, 28, 28)$
 17. `BatchNorm2d(512)` + `ReLU()`
 18. `MaxPool2d(2, 2)` $\to$ saída: $(512, 14, 14)$
 
-#### **Pooling Global e Classificador:**
+##### **Pooling Global e Classificador:**
 
 19. `AdaptiveAvgPool2d((1, 1))` $\to$ comprime espacialmente para $(512, 1, 1)$
 20. `Flatten()` $\to$ vetor 1D de tamanho $512$
@@ -64,11 +66,50 @@ A rede possui **7 camadas convolucionais**, **7 de Batch Normalization**, **4 Ma
 
 ---
 
+#### **Arquitetura Otimizada (V4 - 5 Blocos Convolucionais para $384 \times 384$):**
+
+Para processar imagens de maior resolução ($384 \times 384$) preservando o campo de visão global e otimizando a memória, a V4 introduziu um **5º Bloco Convolucional** e reduziu a densidade inicial para $32$ filtros (5 convoluções, 5 BatchNorms, 5 MaxPools, 1 AdaptiveAvgPool e 1 camada linear):
+
+##### **Bloco 1 (Resolução: $384 \times 384 \to 192 \times 192$):**
+1. `Conv2d(3, 32, kernel_size=3, padding=1)` $\to$ saída: $(32, 384, 384)$
+2. `BatchNorm2d(32)` + `ReLU()`
+3. `MaxPool2d(2, 2)` $\to$ saída: $(32, 192, 192)$
+
+##### **Bloco 2 (Resolução: $192 \times 192 \to 96 \times 96$):**
+4. `Conv2d(32, 64, kernel_size=3, padding=1)` $\to$ saída: $(64, 192, 192)$
+5. `BatchNorm2d(64)` + `ReLU()`
+6. `MaxPool2d(2, 2)` $\to$ saída: $(64, 96, 96)$
+
+##### **Bloco 3 (Resolução: $96 \times 96 \to 48 \times 48$):**
+7. `Conv2d(64, 128, kernel_size=3, padding=1)` $\to$ saída: $(128, 96, 96)$
+8. `BatchNorm2d(128)` + `ReLU()`
+9. `MaxPool2d(2, 2)` $\to$ saída: $(128, 48, 48)$
+
+##### **Bloco 4 (Resolução: $48 \times 48 \to 24 \times 24$):**
+10. `Conv2d(128, 256, kernel_size=3, padding=1)` $\to$ saída: $(256, 48, 48)$
+11. `BatchNorm2d(256)` + `ReLU()`
+12. `MaxPool2d(2, 2)` $\to$ saída: $(256, 24, 24)$
+
+##### **Bloco 5 (Resolução: $24 \times 24 \to 12 \times 12$):**
+13. `Conv2d(256, 512, kernel_size=3, padding=1)` $\to$ saída: $(512, 24, 24)$
+14. `BatchNorm2d(512)` + `ReLU()`
+15. `MaxPool2d(2, 2)` $\to$ saída: $(512, 12, 12)$
+
+##### **Pooling Global e Classificador:**
+16. `AdaptiveAvgPool2d((1, 1))` $\to$ comprime para $(512, 1, 1)$
+17. `Flatten()` $\to$ vetor 1D de tamanho $512$
+18. `Dropout(p=0.5)`
+19. `Linear(512, 1)` $\to$ $1$ logit de saída (classificação binária)
+
+---
+
 ### 4. Outras informações relevantes:
 
 - **Ativação final:** Não possui `Sigmoid` embutido na saída; o modelo retorna o *logit* bruto. Portanto, a função de perda adequada para treinamento é `nn.BCEWithLogitsLoss`.
 - **Dropout:** Taxa de $0.5$ (50%) antes da última camada linear.
 - **Regularização interna:** `BatchNorm2d` em todas as camadas convolucionais.
+- **Origem dos pesos:** Todos os modelos (V1, V2, V3 e V4) foram inicializados e treinados **estritamente do zero (*from scratch*)**, utilizando a inicialização padrão de parâmetros do PyTorch. Não foram utilizados pesos pré-treinados externos (ex.: ImageNet) e os treinamentos não foram continuados a partir de checkpoints de versões anteriores.
+- **Mudanças entre etapas e congelamento de camadas:** O treinamento de cada versão foi executado em **etapa única e contínua, sem congelamento de camadas (*layer freezing*)** e sem intervenções manuais de hiperparâmetros no meio da execução. Nas versões V3 e V4, a variação dinâmica por época foi conduzida pelo escalonador `CosineAnnealingLR` (decaimento contínuo de $10^{-3}$ até $10^{-6}$ em 30 épocas). As mudanças estruturais e de dados ocorreram exclusivamente entre versões independentes (V1 $\to$ V2 $\to$ V3 $\to$ V4).
 
 ### 5. Lista de Hiperparâmetros (Cada versão: 1ª / 2ª / 3ª / 4ª)
 
@@ -96,3 +137,26 @@ A rede possui **7 camadas convolucionais**, **7 de Batch Normalization**, **4 Ma
 3. **Estabilidade de Treino:** O aumento do *batch size* para **128** gerou gradientes mais estáveis ao longo do processo.
 
 A **V2** é superior em todas as métricas essenciais.
+
+---
+
+### 7. Seleção da Melhor Época, Checkpoints e Arquivos de Saída
+
+#### Como a Época de Cada Versão Foi Escolhida
+
+Em todas as versões (`V1`, `V2`, `V3` e `V4`), o critério de seleção do melhor checkpoint durante o treinamento foi a **menor perda no conjunto de validação (`val_loss`, calculada com `BCEWithLogitsLoss`)**:
+
+1. Ao final de cada época, o modelo é avaliado em `model.eval()` sobre os $5.000$ exemplos do conjunto de validação (divisão estratificada 80%/20%).
+2. Sempre que `val_loss < best_val_loss`, os pesos atuais (`model.state_dict()`) sobrescrevem o arquivo de checkpoint da respectiva versão (`best_model*.pth`).
+3. Nas versões **V2**, **V3** e **V4**, foi utilizado **Early Stopping** monitorando `val_loss` (paciência de 5 épocas na V2 e 7 épocas nas V3 e V4).
+4. Ao término do treinamento, o script recarrega os pesos do melhor checkpoint salvo (`best_model*.pth`) para gerar as predições finais de validação (`val_predictions*.csv`) e de submissão no conjunto de teste (`submission*.csv`).
+
+#### Resumo da Época Escolhida e Arquivos por Versão
+
+| Versão | Época Escolhida / Total Executado | Critério de Parada | `val_loss` | `val_acc` | `val_f1` (F1-Score) | `train_loss` | `train_acc` | Checkpoint Salvo | Histórico de Treino | Predições de Validação | Submissão (Teste) |
+| :--- | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :--- | :--- |
+| **V1** | **Época 15** / 15 | Fim das 15 épocas fixas | `0.2187` | `91.54%` | `91.16%` | `0.1564` | `94.07%` | `data/best_model.pth` | `data/training_history.csv` | `data/val_predictions.csv` | `data/submission.csv` |
+| **V2** | **Época 18** / 23 (máx. 25) | *Early Stopping* na época 23 (paciência = 5) | `0.1663` | `93.26%` | `93.25%` | `0.1972` | `92.16%` | `data/best_model_2.0.pth` | `data/training_history_2.0.csv` | `data/val_predictions_2.0.csv` | `data/submission_2.0.csv` |
+| **V3** | **Época 28** / 30 (máx. 30) | Fim das 30 épocas (paciência = 7) | `0.1938` | `92.42%` | `92.42%` | `0.2081` | `91.97%` | `data/best_model_3.0.pth` | `data/training_history_3.0.csv` | `data/val_predictions_3.0.csv` | `data/submission_3.0.csv` |
+| **V4** | **Época 30** / 30 (máx. 30) | Fim das 30 épocas (paciência = 7) | `0.1358` | `94.64%` | `94.61%` | `0.1418` | `94.41%` | `data/best_model_4.0.pth` | `data/training_history_4.0.csv` | `data/val_predictions_4.0.csv` | `data/submission_4.0.csv` |
+

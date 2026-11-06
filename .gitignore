@@ -27,12 +27,3 @@ Thumbs.db
 *.zip
 /data/pets-impatech/
 
-# Pesos e checkpoints de modelos (arquivos pesados)
-*.pth
-*.pt
-*.ckpt
-*.h5
-*.onnx
-
-# Saídas de treinamento e predições
-data/*.csv
