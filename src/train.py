@@ -1,6 +1,8 @@
-"""Loop de treinamento"""
+"""Loop de treinamento (V4)"""
 
+import random
 from pathlib import Path
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -11,38 +13,54 @@ from dataset import ROOT_DIR, get_dataloaders
 from model import CNN
 
 # Hiperparametros
-BATCH_SIZE = 128
+SEED = 42
+BATCH_SIZE = 64
 LEARNING_RATE = 0.001
+ETA_MIN = 1e-6
 WEIGHT_DECAY = 1e-4
-N_EPOCHS = 25
-EARLY_STOPPING_PATIENCE = 5
+N_EPOCHS = 30
+EARLY_STOPPING_PATIENCE = 7
 
 OUTPUT_DIR = ROOT_DIR / "data"
 
 
+def set_seed(seed: int = SEED) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 def train_model():
+    set_seed(SEED)
+
     # configs
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Treinando em: {device}\n")
+    use_amp = device.type == "cuda"
+    print(f"Treinando em: {device} | Precisão Mista (AMP): {use_amp}\n")
 
     batch_size = BATCH_SIZE
     lr = LEARNING_RATE
+    eta_min = ETA_MIN
     weight_decay = WEIGHT_DECAY
     n_epochs = N_EPOCHS
     patience = EARLY_STOPPING_PATIENCE
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    save_path = OUTPUT_DIR / "best_model_2.0.pth"
-    history_path = OUTPUT_DIR / "training_history_2.0.csv"
-    val_preds_path = OUTPUT_DIR / "val_predictions_2.0.csv"
+    save_path = OUTPUT_DIR / "best_model_4.0.pth"
+    history_path = OUTPUT_DIR / "training_history_4.0.csv"
+    val_preds_path = OUTPUT_DIR / "val_predictions_4.0.csv"
 
     # modelo e dataloader
     train_loader, val_loader = get_dataloaders(batch_size)
     model = CNN().to(device)
 
-    # otimização e perda
+    # otimização, perda, scheduler e scaler AMP
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min=eta_min)
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     best_val_loss = float("inf")
     epochs_without_improvement = 0
@@ -56,18 +74,22 @@ def train_model():
 
         train_bar = tqdm(train_loader, desc=f"Epoch [{epoch + 1}/{n_epochs}] Treino")
         for images, labels in train_bar:
-            images = images.to(device)
+            images = images.to(device, non_blocking=True)
             # BCEWithLogitsLoss espera rótulo como (N, 1) float
-            labels = labels.to(device).unsqueeze(1).float()
+            labels = labels.to(device, non_blocking=True).unsqueeze(1).float()
 
             optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+
+            with torch.amp.autocast(device_type=device.type, enabled=use_amp):
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             train_loss += loss.item() * images.size(0)
-            preds = (torch.sigmoid(outputs) > 0.5).float()
+            preds = (torch.sigmoid(outputs.detach()) > 0.5).float()
             train_correct += (preds == labels).sum().item()
 
         epoch_train_loss = train_loss / len(train_loader.dataset)
@@ -80,13 +102,14 @@ def train_model():
 
         with torch.no_grad():
             for images, labels in val_loader:
-                images = images.to(device)
-                labels = labels.to(device).unsqueeze(1).float()
+                images = images.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True).unsqueeze(1).float()
 
-                outputs = model(images)
-                loss = criterion(outputs, labels)
+                with torch.amp.autocast(device_type=device.type, enabled=use_amp):
+                    outputs = model(images)
+                    loss = criterion(outputs, labels)
 
-                probs = torch.sigmoid(outputs)
+                probs = torch.sigmoid(outputs.float())
                 preds = (probs > 0.5).float()
 
                 val_loss += loss.item() * images.size(0)
@@ -98,9 +121,13 @@ def train_model():
 
         epoch_val_loss = val_loss / len(val_loader.dataset)
         epoch_val_acc = val_correct / len(val_loader.dataset)
+        current_lr = optimizer.param_groups[0]["lr"]
+
+        # Passo do scheduler ao final da época
+        scheduler.step()
 
         print(
-            f"Epoch [{epoch + 1}/{n_epochs}]\n"
+            f"Epoch [{epoch + 1}/{n_epochs}] (LR: {current_lr:.6f})\n"
             f"  Treino Loss: {epoch_train_loss:.4f} | Acc: {epoch_train_acc:.4f}\n"
             f"  Val Loss:    {epoch_val_loss:.4f} | Acc: {epoch_val_acc:.4f}"
         )

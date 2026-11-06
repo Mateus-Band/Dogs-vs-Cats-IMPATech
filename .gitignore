@@ -25,6 +25,7 @@ Thumbs.db
 # Base de dados (brutos e descompactados)
 /data/dogs-vs-cats/
 *.zip
+/data/pets-impatech/
 
 # Pesos e checkpoints de modelos (arquivos pesados)
 *.pth

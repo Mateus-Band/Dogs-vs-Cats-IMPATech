@@ -70,21 +70,22 @@ A rede possui **7 camadas convolucionais**, **7 de Batch Normalization**, **4 Ma
 - **Dropout:** Taxa de $0.5$ (50%) antes da última camada linear.
 - **Regularização interna:** `BatchNorm2d` em todas as camadas convolucionais.
 
-### 5. Lista de Hiperparâmetros (Cada versão: 1ª / 2ª / ...)
+### 5. Lista de Hiperparâmetros (Cada versão: 1ª / 2ª / 3ª / 4ª)
 
-* **Tamanho do Lote (Batch Size):** 64 / 128 / 64
-* **Número de Épocas:** 15 / 25 (com *Early Stopping*: paciência de 5 épocas) / 30 (paciencia = 7)
-* **Taxa de Aprendizado (Learning Rate):** 0.001 (`1e-3`) / igual / igual
-* **Otimizador:** Adam / AdamW (`weight_decay=1e-4`) / igual a V2
-* **Função de Perda:** `BCEWithLogitsLoss` / igual / igual
-* **Taxa de Dropout:** 0.5 (50%) / igual / igual
-* **Resolução de Entrada:** 224 px / 224 px (mantido) / 384px
-* **Aumento de Dados (Data Augmentation):** Nenhum / `RandomResizedCrop(224)`, `RandomHorizontalFlip`, `RandomRotation(15)`, `ColorJitter(0.2)`/ `RandomResizedCrop(384)`+ Augmentations de antes.
-* **Divisão dos Dados (Treino / Validação):** 80% - 20% (Estratificado) / igual /
-* **Normalização:** ImageNet (`mean=[0.485, 0.456, 0.406]`, `std=[0.229, 0.224, 0.225]`) / Própria do Treino (`mean=[0.4907, 0.4553, 0.4169]`, `std=[0.2594, 0.2524, 0.2541]`) / Igual V2
-* **Filtros Convolucionais:** Tamanho $3 \times 3$ (`padding=1`, `stride=1`) / igual
-* **Pooling (MaxPool):** Tamanho $2 \times 2$ (`stride=2`) / igual
-* **Learning Rate Scheduler:** Não / Não / CosineAnnealingLR (solucionador da variancia)
+* **Tamanho do Lote (Batch Size):** 64 / 128 / 48 (maior tamanho de imagem) / 64 (5 blocos + AMP)
+* **Número de Épocas:** 15 / 25 (com *Early Stopping*: paciência de 5 épocas) / 30 (paciencia = 7) / 30 (paciência = 7)
+* **Taxa de Aprendizado (Learning Rate):** 0.001 (`1e-3`) / igual / igual / igual
+* **Otimizador:** Adam / AdamW (`weight_decay=1e-4`) / igual a V2 / igual a V2
+* **Função de Perda:** `BCEWithLogitsLoss` / igual / igual / igual
+* **Taxa de Dropout:** 0.5 (50%) / igual / igual / igual
+* **Resolução de Entrada:** 224 px / 224 px (mantido) / 384px / 384px
+* **Aumento de Dados (Data Augmentation):** Nenhum / `RandomResizedCrop(224)`, `RandomHorizontalFlip`, `RandomRotation(15)`, `ColorJitter(0.2)` / `RandomResizedCrop(384)` + Augmentations de antes / igual a V3 (`Resize(384)` na validação)
+* **Divisão dos Dados (Treino / Validação):** 80% - 20% (Estratificado) / igual / igual / igual (`seed=42`)
+* **Normalização:** ImageNet (`mean=[0.485, 0.456, 0.406]`, `std=[0.229, 0.224, 0.225]`) / Própria do Treino (`mean=[0.4907, 0.4553, 0.4169]`, `std=[0.2594, 0.2524, 0.2541]`) / Própria 384px (`norm_stats_3.0.json`) / Igual V3
+* **Filtros Convolucionais:** Tamanho $3 \times 3$ (`padding=1`, `stride=1`) / igual / igual / 5 blocos ($32 \to 64 \to 128 \to 256 \to 512$)
+* **Pooling (MaxPool):** Tamanho $2 \times 2$ (`stride=2`) / igual / igual / 5 MaxPools $2 \times 2$ + `AdaptiveAvgPool2d(1, 1)`
+* **Learning Rate Scheduler:** Não / Não / CosineAnnealingLR (solucionador da variancia) / `CosineAnnealingLR(T_max=30, eta_min=1e-6)`
+* **Precisão Mista (AMP):** Não / Não / Não / Sim (`torch.amp.autocast` FP16)
 
 ### 6. Segunda Versão:
 

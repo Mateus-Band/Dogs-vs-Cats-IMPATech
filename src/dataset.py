@@ -14,6 +14,7 @@ from torchvision.transforms import (
     RandomHorizontalFlip,
     RandomResizedCrop,
     RandomRotation,
+    Resize,
     ToTensor,
 )
 
@@ -24,7 +25,7 @@ TRAIN_DIR = DATA_DIR / "train"
 TEST_DIR = DATA_DIR / "test1"
 
 
-NORM_STATS_PATH = ROOT_DIR / "data" / "norm_stats.json"
+NORM_STATS_PATH = ROOT_DIR / "data" / "norm_stats_3.0.json"
 
 
 def compute_channel_stats(file_paths: list[Path]) -> tuple[list[float], list[float]]:
@@ -84,7 +85,7 @@ def get_train_transform(mean: list[float] | None = None, std: list[float] | None
         mean, std = get_norm_stats()
     return Compose(
         [
-            RandomResizedCrop(224, scale=(0.8, 1.0)),
+            RandomResizedCrop(384, scale=(0.8, 1.0)),
             RandomHorizontalFlip(),
             RandomRotation(15),
             ColorJitter(brightness=0.2, contrast=0.2),
@@ -99,6 +100,7 @@ def get_default_transform(mean: list[float] | None = None, std: list[float] | No
         mean, std = get_norm_stats()
     return Compose(
         [
+            Resize((384, 384)),
             ToTensor(),
             Normalize(mean=mean, std=std),
         ]
@@ -148,7 +150,7 @@ def get_train_val_datasets(train_dir: Path = TRAIN_DIR, max_samples: int | None 
 
 
 def get_dataloaders(
-    batch_size: int = 128,
+    batch_size: int = 64,
     train_dir: Path = TRAIN_DIR,
     max_samples: int | None = None,
     num_workers: int = 4,
@@ -175,7 +177,7 @@ def get_dataloaders(
 
 
 def get_test_dataloader(
-    batch_size: int = 128,
+    batch_size: int = 64,
     test_dir: Path = TEST_DIR,
     max_samples: int | None = None,
     num_workers: int = 4,
